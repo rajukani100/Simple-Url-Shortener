@@ -72,6 +72,7 @@ func shortURL(coll mongo.Collection) gin.HandlerFunc {
 		var existingUrlInfo urlInfo
 		filter := bson.D{{Key: "id", Value: hashString}}
 		err := coll.FindOne(context.TODO(), filter).Decode(&existingUrlInfo)
+		fmt.Println(err)
 		if err == nil {
 			shortenTemp.Execute(c.Writer, hashString)
 			return
@@ -88,8 +89,8 @@ func shortURL(coll mongo.Collection) gin.HandlerFunc {
 			c.String(http.StatusInternalServerError, "Failed to shorten URL")
 			return
 		}
+		shortenTemp.Execute(c.Writer, hashString)
 
-		c.String(http.StatusOK, "Your Shortened URL: http://localhost:8080/%s", hashString)
 	}
 }
 
