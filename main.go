@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"text/template"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -28,6 +29,7 @@ func main() {
 
 	collection := client.Database("shortner").Collection("urlInfo")
 	router := setupRouter(*collection)
+	initTemplates()
 	router.Run(":8080")
 }
 
@@ -36,16 +38,29 @@ type urlInfo struct {
 	RedirectUrl string `bson:"redirect_url"`
 }
 
+var shortenTemp *template.Template
+
+func initTemplates() {
+	var error error
+	shortenTemp, error = template.ParseFiles("shorten.html")
+	if error != nil {
+		fmt.Println(error)
+	}
+
+}
+
 func setupRouter(coll mongo.Collection) *gin.Engine {
 	router := gin.Default()
-	router.GET("/create", shortURL(coll))
+	router.StaticFile("/", "index.html")
+	router.StaticFile("/short", "shorten.html")
+	router.POST("/shorten", shortURL(coll))
 	router.GET("/:url", redirectUrl(coll))
 	return router
 }
 
 func shortURL(coll mongo.Collection) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		url := c.Query("url")
+		url := c.PostForm("url")
 		if url == "" {
 			c.String(http.StatusBadRequest, "Missing URL")
 			return
@@ -58,7 +73,7 @@ func shortURL(coll mongo.Collection) gin.HandlerFunc {
 		filter := bson.D{{Key: "id", Value: hashString}}
 		err := coll.FindOne(context.TODO(), filter).Decode(&existingUrlInfo)
 		if err == nil {
-			c.String(http.StatusOK, "Your Shortened URL: http://localhost:8080/%s", hashString)
+			shortenTemp.Execute(c.Writer, hashString)
 			return
 		} else if err != mongo.ErrNoDocuments {
 			log.Println("Error checking for existing URL:", err)
